@@ -1,0 +1,76 @@
+# ============================================================
+# Clash Verge Merge 配置模板（链式代理）
+#
+# 用法：
+#   1. 把机场订阅导入 Clash Verge（前置节点来源）
+#   2. Clash Verge → Profiles → New → 选 "Merge" → 粘贴此文件
+#   3. 在机场订阅卡片上右键 → 勾选此 Merge 配置
+#   4. 选中机场订阅 → Proxies 面板选 "🏭 链式代理"
+#
+# 前置节点名必须和机场订阅里的完全一致，包括方括号/emoji/空格
+# ============================================================
+
+# --- 出口节点（住宅IP / 落地节点）---
+proxies:
+  - name: "🏠 出口节点"
+    type: vmess                              # 或 vless / trojan / ss
+    server: your-exit-server.com              # ← 替换为你的出口节点地址
+    port: 443                                 # ← 替换为实际端口
+    uuid: your-uuid-here                      # ← 替换为实际 UUID
+    alterId: 0
+    cipher: auto
+    udp: true
+    # 如果有 TLS / WebSocket，取消注释并填写
+    # tls: true
+    # servername: your.server.com
+    # network: ws
+    # ws-opts:
+    #   path: "/"
+    #   headers:
+    #     Host: your.server.com
+
+    # ★★★ 链式代理核心 ★★★
+    # 引用机场订阅里的节点名（必须完全一致）
+    # 固定单节点：
+    # dialer-proxy: "节点名"
+    # 或引用自动选择组（推荐）：
+    dialer-proxy: "⚡ 前置自动选择"
+
+# --- 代理组 ---
+proxy-groups:
+  # 前置自动选择组（把机场订阅里的节点名填进来）
+  - name: "⚡ 前置自动选择"
+    type: url-test
+    proxies:
+      - "节点A"          # ← 替换为机场订阅里的实际节点名
+      - "节点B"
+      - "节点C"
+      # ... 添加更多节点
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+
+  # 链式代理组
+  - name: "🏭 链式代理"
+    type: select
+    proxies:
+      - "🏠 出口节点"
+      - "⚡ 前置自动选择"
+      - DIRECT
+
+  # 总入口
+  - name: "🚀 节点选择"
+    type: select
+    proxies:
+      - "🏭 链式代理"
+      - "⚡ 前置自动选择"
+      - DIRECT
+
+# --- 规则 ---
+rules:
+  - IP-CIDR,127.0.0.0/8,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,🚀 节点选择

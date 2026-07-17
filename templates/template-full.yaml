@@ -1,0 +1,135 @@
+# ============================================================
+# 完整 config.yaml 模板（链式代理）
+# 适用于 Clash Plus / 任何不支持 Merge 叠加的 Mihomo 客户端
+#
+# 用法：
+#   1. 把前置节点定义 + 出口节点定义都写在下面
+#   2. 在客户端新建配置文件 / 导入此文件
+#   3. Proxies 面板选 "🏭 链式代理"
+#
+# 注意：前置节点参数写死在文件里，机场改了节点后需手动同步
+# ============================================================
+
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+unified-delay: true
+
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  fallback:
+    - tls://8.8.8.8:853
+    - tls://1.1.1.1:853
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+
+proxies:
+  # ===== 前置节点（从机场订阅导出的配置里复制）=====
+  # 以下是几种常见协议示例，替换为你的实际节点
+
+  # 示例1: anytls 节点
+  - name: "前置节点A"
+    type: anytls
+    server: server-a.example.com
+    port: 443
+    password: your-password
+    sni: your-sni.example.com
+    udp: true
+
+  # 示例2: vless + reality 节点
+  - name: "前置节点B"
+    type: vless
+    server: server-b.example.com
+    port: 443
+    uuid: your-uuid
+    network: tcp
+    tls: true
+    flow: xtls-rprx-vision
+    servername: your-sni.example.com
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: your-public-key
+      short-id: your-short-id
+    udp: true
+
+  # 示例3: vmess + ws + tls 节点
+  - name: "前置节点C"
+    type: vmess
+    server: server-c.example.com
+    port: 443
+    uuid: your-uuid
+    alterId: 0
+    cipher: auto
+    network: ws
+    tls: true
+    servername: your-sni.example.com
+    ws-opts:
+      path: /vmess
+      headers:
+        Host: your-sni.example.com
+    udp: true
+
+  # ... 从机场订阅配置里复制更多前置节点 ...
+
+  # ===== 出口节点（住宅IP / 落地节点）=====
+  - name: "🏠 出口节点"
+    type: vmess
+    server: your-exit-server.com
+    port: 443
+    uuid: your-uuid
+    alterId: 0
+    cipher: auto
+    udp: true
+    # ★★★ 链式代理核心 ★★★
+    # 出口节点的连接先走前置节点/组
+    # 固定单节点：
+    # dialer-proxy: "前置节点A"
+    # 自动选择组（推荐）：
+    dialer-proxy: "⚡ 前置自动选择"
+
+# ===== 代理组 =====
+proxy-groups:
+  # 前置自动选择组 - 定期测速选最快的
+  - name: "⚡ 前置自动选择"
+    type: url-test
+    proxies:
+      - "前置节点A"
+      - "前置节点B"
+      - "前置节点C"
+      # ... 添加更多前置节点
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+
+  # 链式代理组（出口=住宅IP）
+  - name: "🏭 链式代理"
+    type: select
+    proxies:
+      - "🏠 出口节点"
+      - "⚡ 前置自动选择"
+      - DIRECT
+
+  # 总入口
+  - name: "🚀 节点选择"
+    type: select
+    proxies:
+      - "🏭 链式代理"
+      - "⚡ 前置自动选择"
+      - DIRECT
+
+# ===== 规则 =====
+rules:
+  - IP-CIDR,127.0.0.0/8,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,🚀 节点选择
